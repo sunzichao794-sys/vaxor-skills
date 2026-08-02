@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "repository": "sunzichao794-sys/vaxor-skills",
+  "release": "v0.1.0",
+  "skills": [
+    {
+      "id": "create-beauty-video",
+      "path": "skills/create-beauty-video",
+      "version": "0.1.0",
+      "status": "prerelease",
+      "hosts": ["codex"],
+      "futureHosts": ["chatgpt_work", "zcode", "workbuddy"],
+      "authorization": "device_code",
+      "requiresServer": true
+    }
+  ]
+}

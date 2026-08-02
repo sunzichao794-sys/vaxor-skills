@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Beauty Video"
+  short_description: "登录天作并编排可追溯的视频生产工作流"
+  default_prompt: "使用 $create-beauty-video 分析我的脚本或参考视频，先确认规则版本、资产角色、镜头计划和费用，再通过天作生成并返回网站管理链接。"
