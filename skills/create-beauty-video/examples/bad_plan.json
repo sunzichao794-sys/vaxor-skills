@@ -1,9 +1,6 @@
 {
-  "workflowProfile": "ugc-commerce-v1",
-  "profileVersion": "draft-0",
-  "shots": [
-    {"shotId": "s1", "durationSec": 3,
-     "actions": [{"text": "a1"}, {"text": "a2"}, {"text": "a3"}, {"text": "a4"}],
-     "firstFramePrompt": "x", "videoPrompt": "y"}
-  ]
+  "schemaVersion": 1,
+  "name": "invalid-private-field",
+  "rulesHash": "not-permitted-in-public-v2",
+  "steps": []
 }

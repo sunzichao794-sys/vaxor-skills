@@ -9,7 +9,7 @@
   "invariants": {
     "apiContract": "references/automation-openapi.json",
     "authorization": "device_authorization",
-    "businessLogicLocation": "tianzuo_backend",
+    "businessLogicLocation": "vaxor_backend",
     "tokensInUrls": false,
     "providerCredentialsInHost": false
   },

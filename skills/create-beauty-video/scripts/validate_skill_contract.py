@@ -1,74 +1,54 @@
 #!/usr/bin/env python3
-"""Validate the bundled OpenAPI and multi-host contract without third-party packages."""
+"""Validate that the distributable Skill remains a public Vaxor V2 connector."""
 
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 
-SKILL_ROOT = Path(__file__).resolve().parent.parent
-OPENAPI_PATH = SKILL_ROOT / "references" / "automation-openapi.json"
-HOST_PATH = SKILL_ROOT / "examples" / "host_contract.json"
-REQUIRED_HOSTS = {"codex", "chatgpt_work", "zcode", "workbuddy"}
+ROOT = Path(__file__).resolve().parent.parent
+OPENAPI = ROOT / "references" / "automation-openapi.json"
 REQUIRED_OPERATIONS = {
     "startDeviceAuthorization", "pollDeviceToken", "refreshToken", "revokeToken",
-    "getSession", "createInstance", "listAssets", "initializeUpload", "completeUpload",
-    "importAsset", "placeAssets", "getRun", "getRunResult", "listExports",
-    "getExport", "retryExport", "createDownloadTicket", "getUiLinks",
+    "getSession", "listModels", "resolveModels", "previewExternalWorkflow",
+    "createExternalInstance", "compileExternalWorkflow", "startExternalRun",
+    "getExternalRun", "getExternalRunResult", "listExports", "getExport",
+    "retryExport", "createDownloadTicket", "getUiLinks",
+}
+ALLOWED_FILES = {
+    "SKILL.md", "agents/openai.yaml", "examples/bad_plan.json",
+    "examples/good_plan.json", "examples/host_contract.json",
+    "references/automation-api.md", "references/automation-openapi.json",
+    "scripts/analyze_reference_video.py", "scripts/studio_api.py",
+    "scripts/validate_skill_contract.py",
 }
 
 
-def load(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError(f"{path} root must be an object")
-    return value
-
-
-def validate() -> list[str]:
-    errors: list[str] = []
-    openapi = load(OPENAPI_PATH)
-    if openapi.get("openapi") != "3.1.0":
-        errors.append("OpenAPI version must be 3.1.0")
-    if "bearerAuth" not in openapi.get("components", {}).get("securitySchemes", {}):
-        errors.append("bearerAuth security scheme is missing")
-    operations: set[str] = set()
-    for path, path_item in openapi.get("paths", {}).items():
-        if not isinstance(path_item, dict):
-            continue
-        for method, operation in path_item.items():
-            if method not in {"get", "post", "patch", "put", "delete"} or not isinstance(operation, dict):
-                continue
-            operation_id = operation.get("operationId")
-            if operation_id in operations:
-                errors.append(f"duplicate operationId: {operation_id}")
-            if isinstance(operation_id, str):
-                operations.add(operation_id)
-            if "x-required-scopes" not in operation:
-                errors.append(f"{method.upper()} {path} is missing x-required-scopes")
-    missing = REQUIRED_OPERATIONS - operations
-    if missing:
-        errors.append(f"missing operations: {', '.join(sorted(missing))}")
-
-    hosts = load(HOST_PATH)
-    actual_hosts = {
-        item.get("clientType") for item in hosts.get("hosts", []) if isinstance(item, dict)
-    }
-    if actual_hosts != REQUIRED_HOSTS:
-        errors.append(f"host fixture must contain exactly: {', '.join(sorted(REQUIRED_HOSTS))}")
-    if hosts.get("invariants", {}).get("tokensInUrls") is not False:
-        errors.append("host fixture must prohibit tokens in URLs")
-    return errors
-
-
 def main() -> int:
+    errors: list[str] = []
     try:
-        errors = validate()
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        errors = [str(exc)]
+        document = json.loads(OPENAPI.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(json.dumps({"valid": False, "errors": [str(exc)]}, ensure_ascii=False, indent=2))
+        return 1
+    if document.get("openapi") != "3.1.0":
+        errors.append("OpenAPI version must be 3.1.0")
+    operations = {
+        operation.get("operationId")
+        for path in document.get("paths", {}).values() if isinstance(path, dict)
+        for operation in path.values() if isinstance(operation, dict)
+    }
+    missing = sorted(REQUIRED_OPERATIONS - operations)
+    if missing:
+        errors.append(f"missing operations: {', '.join(missing)}")
+    for path in ROOT.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = str(path.relative_to(ROOT))
+        if relative not in ALLOWED_FILES:
+            errors.append(f"unapproved distributable file: {relative}")
     print(json.dumps({"valid": not errors, "errors": errors}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 

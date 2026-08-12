@@ -1,17 +1,27 @@
 {
   "schemaVersion": 1,
-  "name": "test-beauty",
-  "workflowProfile": "ugc-commerce-v1",
-  "profileVersion": "draft-0",
-  "rulesHash": "draft:ugc-commerce-v1-rules-pending",
-  "continuityBible": {"confirmed": true},
-  "assetMap": [{"assetId": "a1", "role": "product", "confirmed": true}],
-  "shots": [
-    {"shotId": "s1", "startSec": 0, "endSec": 3, "durationSec": 3,
-     "actions": [{"id": "a1", "text": "raise eyes"}],
-     "firstFramePrompt": "close-up face", "videoPrompt": "slow push in"},
-    {"shotId": "s2", "startSec": 3, "endSec": 6, "durationSec": 3,
-     "actions": [{"id": "a1", "text": "touch cheek"}, {"id": "a2", "text": "hold"}],
-     "firstFramePrompt": "product closeup", "videoPrompt": "tilt down"}
-  ]
+  "name": "user-authored-video-plan",
+  "steps": [
+    {
+      "id": "frame-1",
+      "kind": "image",
+      "title": "User authored first frame",
+      "prompt": "The user's own image prompt goes here.",
+      "scenarioModelId": "SELECT_FROM_LIVE_MODELS",
+      "capability": "SELECT_FROM_LIVE_MODELS",
+      "collectionId": "USER_SELECTED_COLLECTION"
+    },
+    {
+      "id": "clip-1",
+      "kind": "video",
+      "title": "User authored video clip",
+      "prompt": "The user's own motion prompt goes here.",
+      "scenarioModelId": "SELECT_FROM_LIVE_MODELS",
+      "capability": "SELECT_FROM_LIVE_MODELS",
+      "collectionId": "USER_SELECTED_COLLECTION",
+      "inputStepIds": ["frame-1"],
+      "durationSec": 3
+    }
+  ],
+  "output": { "finalCollectionId": "USER_SELECTED_EXPORT_COLLECTION", "aspectRatio": "9:16", "resolution": "1080p" }
 }
