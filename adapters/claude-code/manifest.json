@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "host": "claude_code",
+  "displayName": "Claude Code",
+  "status": "verification",
+  "adapter": "portable",
+  "installType": "markdown_openapi_cli",
+  "authMode": "device_code",
+  "clientType": "custom",
+  "coreContract": "../../core/contract.json",
+  "openapi": "../../skills/create-beauty-video/references/automation-openapi.json",
+  "nativeProtocolVerified": false,
+  "clientTypeNote": "The current public auth contract accepts custom; no native Claude Code protocol is claimed."
+}

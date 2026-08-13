@@ -1,7 +1,14 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "repository": "sunzichao794-sys/vaxor-skills",
-  "release": "v0.2.0",
+  "release": "v0.3.0",
+  "core": {
+    "version": "0.3.0",
+    "path": "core",
+    "contract": "core/contract.json",
+    "apiRoot": "/api/automation",
+    "authorization": "device_code"
+  },
   "skills": [
     {
       "id": "create-beauty-video",
@@ -9,9 +16,17 @@
       "version": "0.2.0",
       "status": "stable",
       "hosts": ["codex"],
-      "futureHosts": ["chatgpt_work", "zcode", "workbuddy"],
       "authorization": "device_code",
-      "requiresServer": true
+      "requiresServer": true,
+      "coreVersion": "0.3.0"
     }
+  ],
+  "adapters": [
+    {"id": "codex", "path": "skills/create-beauty-video", "version": "0.2.0", "status": "stable", "installType": "codex_skill", "clientType": "codex"},
+    {"id": "zcode", "path": "adapters/zcode", "version": "0.3.0", "status": "verification", "installType": "markdown_openapi_cli", "clientType": "zcode", "nativeProtocolVerified": false},
+    {"id": "chatgpt_work", "path": "adapters/chatgpt-work", "version": "0.3.0", "status": "verification", "installType": "markdown_openapi_cli", "clientType": "chatgpt_work", "nativeProtocolVerified": false},
+    {"id": "workbuddy", "path": "adapters/workbuddy", "version": "0.3.0", "status": "verification", "installType": "markdown_openapi_cli", "clientType": "workbuddy", "nativeProtocolVerified": false},
+    {"id": "claude_code", "path": "adapters/claude-code", "version": "0.3.0", "status": "verification", "installType": "markdown_openapi_cli", "clientType": "custom", "nativeProtocolVerified": false},
+    {"id": "portable", "path": "adapters/portable", "version": "0.3.0", "status": "beta", "installType": "markdown_openapi_cli", "clientType": "custom", "nativeProtocolVerified": false}
   ]
 }

@@ -1,10 +1,12 @@
 {
   "schemaVersion": 1,
   "hosts": [
-    {"clientType": "codex", "adapter": "openapi", "browserLinks": true},
-    {"clientType": "chatgpt_work", "adapter": "openapi", "browserLinks": true},
-    {"clientType": "zcode", "adapter": "openapi", "browserLinks": "host-dependent"},
-    {"clientType": "workbuddy", "adapter": "openapi", "browserLinks": "host-dependent"}
+    {"id": "codex", "clientType": "codex", "adapter": "native_skill", "status": "stable", "browserLinks": true},
+    {"id": "chatgpt_work", "clientType": "chatgpt_work", "adapter": "portable", "status": "verification", "browserLinks": true},
+    {"id": "zcode", "clientType": "zcode", "adapter": "portable", "status": "verification", "browserLinks": "host-dependent"},
+    {"id": "workbuddy", "clientType": "workbuddy", "adapter": "portable", "status": "verification", "browserLinks": "host-dependent"},
+    {"id": "claude_code", "clientType": "custom", "adapter": "portable", "status": "verification", "browserLinks": "host-dependent"},
+    {"id": "portable", "clientType": "custom", "adapter": "portable", "status": "beta", "browserLinks": "host-dependent"}
   ],
   "invariants": {
     "apiContract": "references/automation-openapi.json",

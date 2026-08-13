@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "host": "portable",
+  "displayName": "Portable Adapter",
+  "status": "beta",
+  "adapter": "portable",
+  "installType": "markdown_openapi_cli",
+  "authMode": "device_code",
+  "clientType": "custom",
+  "coreContract": "../../core/contract.json",
+  "openapi": "../../skills/create-beauty-video/references/automation-openapi.json",
+  "nativeProtocolVerified": false
+}

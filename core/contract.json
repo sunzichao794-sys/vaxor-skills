@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "apiRoot": "/api/automation",
+  "auth": {
+    "mode": "device_code",
+    "tokenTransport": "authorization_header_only",
+    "requiredScopes": [
+      "studio:instances:read",
+      "studio:instances:write",
+      "studio:assets:read",
+      "studio:assets:write",
+      "studio:models:read",
+      "studio:workflows:write",
+      "studio:runs:read",
+      "studio:runs:write",
+      "studio:exports:read",
+      "studio:exports:write"
+    ]
+  },
+  "preview": {
+    "method": "POST",
+    "path": "/v2/studio/plans/preview",
+    "sideEffects": ["none"],
+    "requiresExplicitRunApproval": true
+  },
+  "ownership": {
+    "instanceAndResourceChecks": "vaxor_backend",
+    "hostMustNotAccept": ["objectKey", "signedUrl", "providerToken", "privatePromptArtifact"]
+  }
+}

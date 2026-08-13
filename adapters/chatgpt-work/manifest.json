@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "host": "chatgpt_work",
+  "displayName": "ChatGPT Work",
+  "status": "verification",
+  "adapter": "portable",
+  "installType": "markdown_openapi_cli",
+  "authMode": "device_code",
+  "clientType": "chatgpt_work",
+  "coreContract": "../../core/contract.json",
+  "openapi": "../../skills/create-beauty-video/references/automation-openapi.json",
+  "nativeProtocolVerified": false
+}

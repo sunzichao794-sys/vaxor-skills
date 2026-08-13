@@ -25,6 +25,8 @@ ALLOWED_FILES = {
     "scripts/validate_skill_contract.py",
 }
 
+ALLOWED_PREFIXES = ("core/", "adapters/", "tests/")
+
 
 def main() -> int:
     errors: list[str] = []
@@ -47,7 +49,7 @@ def main() -> int:
         if not path.is_file():
             continue
         relative = str(path.relative_to(ROOT))
-        if relative not in ALLOWED_FILES:
+        if relative not in ALLOWED_FILES and not relative.startswith(ALLOWED_PREFIXES):
             errors.append(f"unapproved distributable file: {relative}")
     print(json.dumps({"valid": not errors, "errors": errors}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
