@@ -21,9 +21,12 @@
     "auth-session",
     "instance",
     "assets",
+    "preview",
     "compile",
+    "run",
     "status",
     "result",
+    "exports",
     "ui-links"
   ]
 }

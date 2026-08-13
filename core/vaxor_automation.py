@@ -79,6 +79,7 @@ HOST_ADAPTERS: dict[str, dict[str, Any]] = {
 
 _SECRET_NAMES = {
     "authorization",
+    "token",
     "access_token",
     "accesstoken",
     "refresh_token",

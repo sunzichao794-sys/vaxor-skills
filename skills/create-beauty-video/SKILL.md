@@ -1,6 +1,6 @@
 ---
 name: create-beauty-video
-description: "Use when a user wants to use Vaxor from Codex, ChatGPT Work, Zcode, or WorkBuddy to create and name an authenticated video-production instance, manage existing asset folders, upload or import assets, query live model capabilities, submit the user's own generic image/video workflow, run it, and retrieve exports. This is an API connector only: it never supplies Vaxor private prompting, orchestration, provider credentials, fixed model choices, or creative rules."
+description: "Use when a user wants to use Vaxor from Codex or a verified/Portable adapter for ChatGPT Work, ZCode, WorkBuddy, Claude Code, or another host to create and name an authenticated video-production instance, manage existing asset folders, upload or import assets, query live model capabilities, submit the user's own generic image/video workflow, run it, and retrieve exports. This is an API connector only: it never supplies Vaxor private prompting, orchestration, provider credentials, fixed model choices, or creative rules."
 ---
 
 # Vaxor Video Connector
