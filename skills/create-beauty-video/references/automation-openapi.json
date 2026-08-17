@@ -1,9 +1,76 @@
 {
   "openapi": "3.1.0",
-  "info": { "title": "Vaxor Automation API", "version": "0.2.0", "description": "Public authenticated Vaxor connector. User-authored plans only." },
-  "servers": [{ "url": "{origin}/api/automation", "variables": { "origin": { "default": "https://studio.example" } } }],
+  "info": {
+    "title": "Vaxor Public Automation API",
+    "version": "0.4.0",
+    "description": "Authenticated public media connector using opaque model references and quote confirmations."
+  },
+  "servers": [{
+    "url": "{origin}/api/automation",
+    "variables": { "origin": { "default": "https://studio.example" } }
+  }],
   "security": [{ "bearerAuth": [] }],
-  "components": { "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer" } } },
+  "components": {
+    "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer" } },
+    "schemas": {
+      "PublicParameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "aspectRatio": { "type": "string", "enum": ["16:9", "9:16", "4:3", "1:1"] },
+          "resolution": { "type": "string" },
+          "durationSec": { "type": "number", "minimum": 0.1, "maximum": 120 },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 100 }
+        }
+      },
+      "QuoteConfirmation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stepId", "quoteConfirmation"],
+        "properties": {
+          "stepId": { "type": "string" },
+          "quoteConfirmation": { "type": "string" }
+        }
+      },
+      "ExternalWorkflowStep": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "title", "prompt", "modelRef", "capability", "collectionId"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["image", "video"] },
+          "title": { "type": "string" },
+          "prompt": { "type": "string" },
+          "modelRef": { "type": "string" },
+          "capability": { "type": "string" },
+          "collectionId": { "type": "string" },
+          "inputAssetIds": { "type": "array", "items": { "type": "string" } },
+          "inputStepIds": { "type": "array", "items": { "type": "string" } },
+          "durationSec": { "type": "number", "minimum": 0.1, "maximum": 120 },
+          "parameters": { "$ref": "#/components/schemas/PublicParameters" }
+        }
+      },
+      "ExternalWorkflowPlan": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schemaVersion", "name", "steps"],
+        "properties": {
+          "schemaVersion": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string" },
+          "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/ExternalWorkflowStep" } },
+          "output": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "finalCollectionId": { "type": "string" },
+              "aspectRatio": { "type": "string", "enum": ["16:9", "9:16", "4:3", "1:1"] },
+              "resolution": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
   "paths": {
     "/v1/auth/device/code": { "post": { "operationId": "startDeviceAuthorization", "x-required-scopes": [] } },
     "/v1/auth/device/token": { "post": { "operationId": "pollDeviceToken", "x-required-scopes": [] } },
@@ -12,11 +79,72 @@
     "/v1/auth/session": { "get": { "operationId": "getSession", "x-required-scopes": [] } },
     "/v2/studio/models": { "get": { "operationId": "listModels", "x-required-scopes": ["studio:models:read"] } },
     "/v2/studio/models/resolve": { "post": { "operationId": "resolveModels", "x-required-scopes": ["studio:models:read"] } },
-    "/v2/studio/plans/preview": { "post": { "operationId": "previewExternalWorkflow", "x-required-scopes": ["studio:workflows:write"] } },
+    "/v2/studio/models/quote": {
+      "post": {
+        "operationId": "quotePublicModel",
+        "x-required-scopes": ["studio:models:read"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "additionalProperties": false,
+          "required": ["modelRef", "capability", "parameters"],
+          "properties": {
+            "modelRef": { "type": "string" },
+            "capability": { "type": "string" },
+            "parameters": { "$ref": "#/components/schemas/PublicParameters" },
+            "quantity": { "type": "integer", "minimum": 1, "maximum": 100 }
+          }
+        } } } }
+      }
+    },
+    "/v2/studio/plans/preview": {
+      "post": {
+        "operationId": "previewExternalWorkflow",
+        "x-required-scopes": ["studio:workflows:write"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "additionalProperties": false,
+          "required": ["plan"],
+          "properties": {
+            "plan": { "$ref": "#/components/schemas/ExternalWorkflowPlan" },
+            "maxCredits": { "type": "integer", "minimum": 0 }
+          }
+        } } } }
+      }
+    },
     "/v2/studio/instances": { "post": { "operationId": "createExternalInstance", "x-required-scopes": ["studio:instances:write"] } },
-    "/v2/studio/instances/{instanceId}/workflows/compile": { "post": { "operationId": "compileExternalWorkflow", "x-required-scopes": ["studio:workflows:write"] } },
-    "/v2/studio/workflows/{workflowInstanceId}/runs": { "post": { "operationId": "startExternalRun", "x-required-scopes": ["studio:runs:write"] } },
+    "/v2/studio/instances/{instanceId}/workflows/compile": {
+      "post": {
+        "operationId": "compileExternalWorkflow",
+        "x-required-scopes": ["studio:workflows:write"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "additionalProperties": false,
+          "required": ["plan", "confirm", "maxCredits", "quoteConfirmations"],
+          "properties": {
+            "plan": { "$ref": "#/components/schemas/ExternalWorkflowPlan" },
+            "confirm": { "const": true },
+            "maxCredits": { "type": "integer", "minimum": 0 },
+            "quoteConfirmations": { "type": "array", "items": { "$ref": "#/components/schemas/QuoteConfirmation" } }
+          }
+        } } } }
+      }
+    },
+    "/v2/studio/workflows/{workflowInstanceId}/runs": {
+      "post": {
+        "operationId": "startExternalRun",
+        "x-required-scopes": ["studio:runs:write"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "additionalProperties": false,
+          "required": ["planHash", "confirm", "maxCredits", "quoteConfirmations"],
+          "properties": {
+            "planHash": { "type": "string" },
+            "confirm": { "const": true },
+            "maxCredits": { "type": "integer", "minimum": 0 },
+            "quoteConfirmations": { "type": "array", "items": { "$ref": "#/components/schemas/QuoteConfirmation" } },
+            "retryOfRunId": { "type": "string" }
+          }
+        } } } }
+      }
+    },
     "/v2/studio/runs/{runId}": { "get": { "operationId": "getExternalRun", "x-required-scopes": ["studio:runs:read"] } },
+    "/v2/studio/runs/{runId}/events": { "get": { "operationId": "getExternalRunEvents", "x-required-scopes": ["studio:runs:read"] } },
     "/v2/studio/runs/{runId}/result": { "get": { "operationId": "getExternalRunResult", "x-required-scopes": ["studio:runs:read"] } },
     "/v2/studio/instances/{instanceId}/exports": { "get": { "operationId": "listExports", "x-required-scopes": ["studio:exports:read"] } },
     "/v2/studio/exports/{exportId}": { "get": { "operationId": "getExport", "x-required-scopes": ["studio:exports:read"] } },

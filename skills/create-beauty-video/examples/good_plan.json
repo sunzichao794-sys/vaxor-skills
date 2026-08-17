@@ -7,7 +7,7 @@
       "kind": "image",
       "title": "User authored first frame",
       "prompt": "The user's own image prompt goes here.",
-      "scenarioModelId": "SELECT_FROM_LIVE_MODELS",
+      "modelRef": "SELECT_MODEL_REF_FROM_LIVE_MODELS",
       "capability": "SELECT_FROM_LIVE_MODELS",
       "collectionId": "USER_SELECTED_COLLECTION"
     },
@@ -16,7 +16,7 @@
       "kind": "video",
       "title": "User authored video clip",
       "prompt": "The user's own motion prompt goes here.",
-      "scenarioModelId": "SELECT_FROM_LIVE_MODELS",
+      "modelRef": "SELECT_MODEL_REF_FROM_LIVE_MODELS",
       "capability": "SELECT_FROM_LIVE_MODELS",
       "collectionId": "USER_SELECTED_COLLECTION",
       "inputStepIds": ["frame-1"],

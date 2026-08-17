@@ -24,6 +24,16 @@ DEFAULT_CREDENTIALS_PATH = Path(os.environ.get(
 AUTH = "/v1/auth"
 STUDIO = "/v2/studio"
 SECRET_KEYS = {"authorization", "token", "accesstoken", "refreshtoken", "devicecode", "secret"}
+FORBIDDEN_PUBLIC_KEYS = {
+    "scenariomodelid", "scenariomodelkey", "providerid", "providerkey",
+    "providerdisplayname", "providermodelname", "modelid", "modelkey",
+    "modeldisplayname", "bindingid", "bindingkey", "bindingdisplayname",
+    "adapterprofilekey", "adapter", "route", "routing", "upstream", "channel",
+    "matchedskukey", "matchedruleid", "policyrevision", "contractversion",
+    "checksum", "billingpolicy", "parameterschema", "inputcontract",
+    "capabilitysnapshot", "workflowdefinition", "providerpayload", "definition",
+}
+PUBLIC_PARAMETER_KEYS = {"aspectRatio", "resolution", "durationSec", "quantity"}
 
 
 class ApiError(RuntimeError):
@@ -37,12 +47,242 @@ def load_json(path: str) -> Any:
     return json.loads(sys.stdin.read() if path == "-" else Path(path).expanduser().read_text(encoding="utf-8"))
 
 
+def normalized_key(value: str) -> str:
+    return "".join(character for character in value if character.isalnum()).lower()
+
+
 def redact(value: Any) -> Any:
     if isinstance(value, dict):
-        return {key: "[REDACTED]" if key.replace("_", "").lower() in SECRET_KEYS else redact(item) for key, item in value.items()}
+        return {key: "[REDACTED]" if normalized_key(key) in SECRET_KEYS else redact(item) for key, item in value.items()}
     if isinstance(value, list):
         return [redact(item) for item in value]
     return value
+
+
+def project_public(value: Any) -> Any:
+    if isinstance(value, list):
+        return [project_public(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result: dict[str, Any] = {}
+    for key, nested in value.items():
+        normalized = normalized_key(key)
+        if normalized in SECRET_KEYS or normalized in FORBIDDEN_PUBLIC_KEYS:
+            continue
+        result[key] = project_public(nested)
+    return result
+
+
+def public_error_body(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return None
+    code = value.get("code")
+    status_code = value.get("statusCode")
+    return {
+        **({"code": str(code)} if isinstance(code, str) and code else {}),
+        **({"statusCode": status_code} if isinstance(status_code, int) else {}),
+        "message": "Vaxor request was rejected.",
+    }
+
+
+def public_fields(value: Any, keys: set[str]) -> dict[str, Any]:
+    source = value if isinstance(value, dict) else {}
+    return {key: project_public(source[key]) for key in keys if key in source}
+
+
+def public_parameters(value: Any) -> dict[str, Any]:
+    return public_fields(value, PUBLIC_PARAMETER_KEYS)
+
+
+def public_confirmation(value: Any) -> dict[str, Any]:
+    return public_fields(value, {"stepId", "quoteConfirmation", "label", "capability", "costCredits", "expiresAt"}) | {
+        "parameters": public_parameters(value.get("parameters")) if isinstance(value, dict) and "parameters" in value else {}
+    }
+
+
+def public_input(value: Any) -> dict[str, Any]:
+    source = value if isinstance(value, dict) else {}
+    result: dict[str, Any] = {}
+    for kind in {"image", "video"}:
+        item = source.get(kind)
+        if isinstance(item, dict):
+            result[kind] = public_fields(item, {"required", "maxCount", "maxDurationSec"})
+    return result
+
+
+def public_capability(value: Any) -> dict[str, Any]:
+    source = value if isinstance(value, dict) else {}
+    parameters = source.get("parameters") if isinstance(source.get("parameters"), dict) else {}
+    return public_fields(source, {"capability", "available"}) | {
+        "input": public_input(source.get("input")),
+        "parameters": public_fields(parameters, {"aspectRatioOptions", "resolutionOptions", "durationSecOptions", "quantityOptions"}),
+    }
+
+
+def public_model(value: Any) -> dict[str, Any]:
+    source = value if isinstance(value, dict) else {}
+    capabilities = source.get("capabilities") if isinstance(source.get("capabilities"), list) else []
+    return {
+        **public_fields(source, {"modelRef", "label", "description"}),
+        "capabilities": [public_capability(capability) for capability in capabilities if isinstance(capability, dict)],
+    }
+
+
+def public_quote_steps(value: Any) -> list[dict[str, Any]]:
+    return [public_confirmation(item) for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def public_credit_estimate(value: Any) -> dict[str, Any]:
+    source = value if isinstance(value, dict) else {}
+    return {
+        **public_fields(source, {"status", "estimatedCredits", "maxCredits", "exceedsMaxCredits", "requiresConfirmation"}),
+        "steps": public_quote_steps(source.get("steps")),
+    }
+
+
+def public_plan(value: Any) -> dict[str, Any]:
+    source = value if isinstance(value, dict) else {}
+    steps = source.get("steps") if isinstance(source.get("steps"), list) else []
+    output = source.get("output") if isinstance(source.get("output"), dict) else {}
+    return {
+        **public_fields(source, {"schemaVersion", "name"}),
+        **({"output": public_fields(output, {"finalCollectionId", "aspectRatio", "resolution"})} if output else {}),
+        "steps": [
+            public_fields(step, {"id", "kind", "title", "prompt", "modelRef", "label", "capability", "collectionId", "inputAssetIds", "inputStepIds", "durationSec"}) | {
+                "parameters": public_parameters(step.get("parameters"))
+            }
+            for step in steps if isinstance(step, dict)
+        ],
+    }
+
+
+def public_asset(value: Any) -> dict[str, Any]:
+    return public_fields(value, {"id", "sourceType", "sourceId", "resourceId", "kind", "title", "displayTitle", "subtitle", "status", "progressPercent", "collectionId", "assignedFolderId", "folder", "mimeType", "format", "sizeBytes", "width", "height", "durationSec", "generationDurationSec", "archivedAt", "createdAt", "updatedAt"})
+
+
+def public_export(value: Any) -> dict[str, Any]:
+    return public_fields(value, {"id", "instanceId", "timelineStateId", "resourceId", "rootTaskId", "title", "status", "progressPercent", "stageLabel", "deliveryFileName", "deliveryAvailable", "durationSec", "segmentCount", "errorSummary", "createdAt", "updatedAt", "completedAt"})
+
+
+def public_run(value: Any) -> dict[str, Any]:
+    source = value if isinstance(value, dict) else {}
+    return {
+        **public_fields(source, {"id", "runId", "workflowInstanceId", "status", "runMode", "terminal", "pollAfterMs", "startedAt", "completedAt", "createdAt", "updatedAt"}),
+        "failure": public_fields(source.get("failure"), {"nodeId", "itemId", "reason", "code", "summary"}),
+        "credits": public_fields(source.get("credits"), {"reserved", "settled"}),
+    }
+
+
+def project_command_response(command: str, value: Any) -> Any:
+    body = response_data(value) if isinstance(value, dict) else value
+    if command in {"models", "resolve-models"}:
+        source = body if isinstance(body, dict) else {}
+        return {
+            **public_fields(source, {"assetType", "constraints", "strategy", "selectionStatus", "revalidateOnSubmission", "reason"}),
+            "models": [public_model(item) for item in source.get("models", []) if isinstance(item, dict)],
+        }
+    if command == "quote":
+        return public_fields(body, {"modelRef", "label", "capability", "costCredits", "expiresAt", "quoteConfirmation"}) | {
+            "parameters": public_parameters(body.get("parameters")) if isinstance(body, dict) else {}
+        }
+    if command == "preview":
+        source = body if isinstance(body, dict) else {}
+        validation = source.get("validation") if isinstance(source.get("validation"), dict) else {}
+        return public_fields(source, {"status", "canRun", "planHash", "stepCount", "totalDurationSec"}) | {
+            "plan": public_plan(source.get("plan")),
+            "validation": {
+                "errors": [public_fields(item, {"code", "path", "message"}) for item in validation.get("errors", []) if isinstance(item, dict)],
+                "warnings": [public_fields(item, {"code", "path", "message"}) for item in validation.get("warnings", []) if isinstance(item, dict)],
+            },
+            "creditEstimate": public_credit_estimate(source.get("creditEstimate")),
+        }
+    if command == "compile":
+        source = body if isinstance(body, dict) else {}
+        return public_fields(source, {"status", "planHash", "promptStudioInstanceId", "workflowInstanceId", "preflight"}) | {
+            "creditEstimate": public_credit_estimate(source.get("creditEstimate")),
+            "quoteConfirmations": public_quote_steps(source.get("quoteConfirmations")),
+        }
+    if command == "run":
+        source = body if isinstance(body, dict) else {}
+        return public_fields(source, {"status", "runId", "workflowInstanceId", "planHash", "reservedCredits", "quotedCredits", "queuedAt"}) | {
+            "creditEstimate": public_credit_estimate(source.get("creditEstimate")),
+            "quoteConfirmations": public_quote_steps(source.get("quoteConfirmations")),
+        }
+    if command == "status":
+        return public_run(body)
+    if command == "events":
+        source = body if isinstance(body, dict) else {}
+        return {
+            "nodes": [public_fields(item, {"id", "nodeId", "itemKey", "attempt", "status", "errorCode", "retryable", "startedAt", "completedAt", "createdAt", "updatedAt"}) for item in source.get("nodes", []) if isinstance(item, dict)],
+            "items": [public_fields(item, {"id", "itemKey", "itemIndex", "itemType", "status", "createdAt", "updatedAt"}) for item in source.get("items", []) if isinstance(item, dict)],
+        }
+    if command == "result":
+        source = body if isinstance(body, dict) else {}
+        return public_run(source) | {
+            "outputs": [public_fields(item, {"id", "nodeId", "kind", "resourceId", "createdAt"}) for item in source.get("outputs", []) if isinstance(item, dict)],
+        }
+    if command == "assets":
+        source = body if isinstance(body, dict) else {}
+        return public_fields(source, {"success", "nextCursor", "hasMore"}) | {"items": [public_asset(item) for item in source.get("items", []) if isinstance(item, dict)]}
+    if command == "folders":
+        source = body if isinstance(body, dict) else {}
+        return public_fields(source, {"success", "instanceId", "version", "updatedAt"}) | {
+            "folders": [public_fields(item, {"id", "kind", "title", "sortOrder", "hidden", "locked"}) for item in source.get("folders", []) if isinstance(item, dict)],
+            "placements": [public_fields(item, {"assetKey", "assignedFolderId", "excludedDefaultFolderIds", "updatedAt"}) for item in source.get("placements", []) if isinstance(item, dict)],
+        }
+    if command in {"exports", "export-status", "export-retry"}:
+        source = body if isinstance(body, dict) else {}
+        if isinstance(source.get("exports"), list):
+            return {"exports": [public_export(item) for item in source["exports"] if isinstance(item, dict)]}
+        return public_export(source.get("export")) if isinstance(source.get("export"), dict) else public_export(source)
+    if command in {"upload-complete", "asset-import"}:
+        source = body if isinstance(body, dict) else {}
+        return public_fields(source, {"status", "instanceId", "uploadId", "resourceId", "assetKey"}) | {
+            **({"asset": public_asset(source.get("asset"))} if isinstance(source.get("asset"), dict) else {}),
+        }
+    if command in {"instance", "rename-instance", "ensure-folders", "asset-place", "upload-init", "download-ticket", "ui-links"}:
+        return project_public(body)
+    return project_public(body)
+
+
+def require_public_plan(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ApiError("plan must contain an object")
+    steps = value.get("steps")
+    if not isinstance(steps, list) or not steps:
+        raise ApiError("plan must contain at least one step")
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            raise ApiError(f"plan.steps[{index}] must contain an object")
+        if not isinstance(step.get("modelRef"), str) or not step["modelRef"].strip():
+            raise ApiError(f"plan.steps[{index}].modelRef is required")
+        if "scenarioModelId" in step or "scenario_model_id" in step:
+            raise ApiError("legacy scenarioModelId is not accepted; use modelRef")
+        parameters = step.get("parameters", {})
+        if not isinstance(parameters, dict) or any(key not in PUBLIC_PARAMETER_KEYS for key in parameters):
+            raise ApiError(f"plan.steps[{index}].parameters may only use public semantic keys")
+        for key in step:
+            if normalized_key(key) in FORBIDDEN_PUBLIC_KEYS:
+                raise ApiError("plan contains a private connector field")
+    return value
+
+
+def load_confirmations(path: str) -> list[dict[str, str]]:
+    value = load_json(path)
+    if not isinstance(value, list):
+        raise ApiError("confirmations must contain an array")
+    confirmations: list[dict[str, str]] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise ApiError(f"confirmations[{index}] must contain an object")
+        step_id = str(item.get("stepId") or "").strip()
+        confirmation = str(item.get("quoteConfirmation") or "").strip()
+        if not step_id or not confirmation:
+            raise ApiError(f"confirmations[{index}] requires stepId and quoteConfirmation")
+        if any(normalized_key(key) in FORBIDDEN_PUBLIC_KEYS for key in item):
+            raise ApiError("confirmations contain a private connector field")
+        confirmations.append({"stepId": step_id, "quoteConfirmation": confirmation})
+    return confirmations
 
 
 def stable_key(method: str, path: str, payload: Any) -> str:
@@ -104,7 +344,7 @@ class StudioApi:
         if payload is not None:
             headers["Content-Type"] = "application/json"
         if self.dry_run:
-            print(json.dumps({"dryRun": True, "method": method, "url": url, "headers": redact(headers), "body": redact(payload), "idempotencyKey": key}, ensure_ascii=False, indent=2))
+            print(json.dumps(project_public({"dryRun": True, "method": method, "url": url, "headers": redact(headers), "body": redact(payload), "idempotencyKey": key}), ensure_ascii=False, indent=2))
             return {"dryRun": True}
         if auth and not self.token:
             raise ApiError("authenticate with auth-start/auth-poll first")
@@ -119,7 +359,7 @@ class StudioApi:
                 body: Any = json.loads(raw)
             except json.JSONDecodeError:
                 body = raw
-            raise ApiError(f"Vaxor API returned HTTP {exc.code}", status=exc.code, body=redact(body)) from exc
+            raise ApiError(f"Vaxor API returned HTTP {exc.code}", status=exc.code, body=public_error_body(body)) from exc
         except urllib.error.URLError as exc:
             raise ApiError(f"Vaxor API request failed: {exc.reason}") from exc
 
@@ -143,7 +383,12 @@ class StudioApi:
                 raw = response.read().decode("utf-8")
                 return json.loads(raw) if raw else {"status": response.status}
         except urllib.error.HTTPError as exc:
-            raise ApiError(f"Vaxor API returned HTTP {exc.code}", status=exc.code, body=redact(exc.read().decode("utf-8", errors="replace"))) from exc
+            raw = exc.read().decode("utf-8", errors="replace")
+            try:
+                body: Any = json.loads(raw)
+            except json.JSONDecodeError:
+                body = None
+            raise ApiError(f"Vaxor API returned HTTP {exc.code}", status=exc.code, body=public_error_body(body)) from exc
 
 
 def q(value: str) -> str:
@@ -186,8 +431,18 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
         return api.request("GET", f"{STUDIO}/models", query={"assetType": args.asset_type})
     if args.command == "resolve-models":
         return api.request("POST", f"{STUDIO}/models/resolve", {"assetType": args.asset_type, "constraints": load_json(args.constraints) if args.constraints else {}, "strategy": args.strategy})
+    if args.command == "quote":
+        return api.request("POST", f"{STUDIO}/models/quote", {
+            "modelRef": args.model_ref,
+            "capability": args.capability,
+            "parameters": load_json(args.parameters),
+            **({"quantity": args.quantity} if args.quantity is not None else {}),
+        })
     if args.command == "preview":
-        return api.request("POST", f"{STUDIO}/plans/preview", {"plan": load_json(args.plan)})
+        return api.request("POST", f"{STUDIO}/plans/preview", {
+            "plan": require_public_plan(load_json(args.plan)),
+            **({"maxCredits": args.max_credits} if args.max_credits is not None else {}),
+        })
     if args.command == "instance":
         return api.request("POST", f"{STUDIO}/instances", {"name": args.name, "description": args.description})
     if args.command == "rename-instance":
@@ -204,9 +459,20 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "upload-complete":
         return api.multipart(f"{STUDIO}/instances/{q(args.instance_id)}/assets/uploads/{q(args.upload_id)}/complete", args.file)
     if args.command == "compile":
-        return api.request("POST", f"{STUDIO}/instances/{q(args.instance_id)}/workflows/compile", {"plan": load_json(args.plan), "confirm": args.confirm, "maxCredits": args.max_credits})
+        return api.request("POST", f"{STUDIO}/instances/{q(args.instance_id)}/workflows/compile", {
+            "plan": require_public_plan(load_json(args.plan)),
+            "confirm": args.confirm,
+            "maxCredits": args.max_credits,
+            "quoteConfirmations": load_confirmations(args.confirmations),
+        })
     if args.command == "run":
-        return api.request("POST", f"{STUDIO}/workflows/{q(args.workflow_instance_id)}/runs", {"planHash": args.plan_hash, "confirm": args.confirm, "maxCredits": args.max_credits, "retryOfRunId": args.retry_of_run_id})
+        return api.request("POST", f"{STUDIO}/workflows/{q(args.workflow_instance_id)}/runs", {
+            "planHash": args.plan_hash,
+            "confirm": args.confirm,
+            "maxCredits": args.max_credits,
+            "quoteConfirmations": load_confirmations(args.confirmations),
+            **({"retryOfRunId": args.retry_of_run_id} if args.retry_of_run_id else {}),
+        })
     if args.command in {"status", "events", "result"}:
         suffix = "" if args.command == "status" else "/events" if args.command == "events" else "/result"
         return api.request("GET", f"{STUDIO}/runs/{q(args.run_id)}{suffix}")
@@ -233,7 +499,8 @@ def parser() -> argparse.ArgumentParser:
         common(sub.add_parser(name))
     models = sub.add_parser("models"); models.add_argument("--asset-type", choices=["image", "video"], required=True); common(models)
     resolve = sub.add_parser("resolve-models"); resolve.add_argument("--asset-type", choices=["image", "video"], required=True); resolve.add_argument("--constraints"); resolve.add_argument("--strategy", default="manual"); common(resolve)
-    preview = sub.add_parser("preview"); preview.add_argument("plan"); common(preview)
+    quote = sub.add_parser("quote"); quote.add_argument("--model-ref", required=True); quote.add_argument("--capability", required=True); quote.add_argument("--parameters", required=True); quote.add_argument("--quantity", type=int); common(quote)
+    preview = sub.add_parser("preview"); preview.add_argument("plan"); preview.add_argument("--max-credits", type=int); common(preview)
     instance = sub.add_parser("instance"); instance.add_argument("--name", required=True); instance.add_argument("--description"); common(instance)
     rename = sub.add_parser("rename-instance"); rename.add_argument("--instance-id", required=True); rename.add_argument("--name", required=True); common(rename)
     folders = sub.add_parser("ensure-folders"); folders.add_argument("--instance-id", required=True); folders.add_argument("--folders", required=True); common(folders)
@@ -243,8 +510,8 @@ def parser() -> argparse.ArgumentParser:
     for name in ("upload-init", "asset-import", "asset-place"):
         item = sub.add_parser(name); item.add_argument("--instance-id", required=True); item.add_argument("--payload", required=True); common(item)
     complete = sub.add_parser("upload-complete"); complete.add_argument("--instance-id", required=True); complete.add_argument("--upload-id", required=True); complete.add_argument("--file", required=True); common(complete)
-    compile_command = sub.add_parser("compile"); compile_command.add_argument("--instance-id", required=True); compile_command.add_argument("plan"); compile_command.add_argument("--confirm", action="store_true"); compile_command.add_argument("--max-credits", type=int, required=True); common(compile_command)
-    run = sub.add_parser("run"); run.add_argument("--workflow-instance-id", required=True); run.add_argument("--plan-hash", required=True); run.add_argument("--confirm", action="store_true"); run.add_argument("--max-credits", type=int, required=True); run.add_argument("--retry-of-run-id"); common(run)
+    compile_command = sub.add_parser("compile"); compile_command.add_argument("--instance-id", required=True); compile_command.add_argument("--confirmations", required=True); compile_command.add_argument("plan"); compile_command.add_argument("--confirm", action="store_true"); compile_command.add_argument("--max-credits", type=int, required=True); common(compile_command)
+    run = sub.add_parser("run"); run.add_argument("--workflow-instance-id", required=True); run.add_argument("--plan-hash", required=True); run.add_argument("--confirmations", required=True); run.add_argument("--confirm", action="store_true"); run.add_argument("--max-credits", type=int, required=True); run.add_argument("--retry-of-run-id"); common(run)
     for name in ("status", "events", "result"):
         item = sub.add_parser(name); item.add_argument("--run-id", required=True); common(item)
     for name in ("export-status", "export-retry", "download-ticket"):
@@ -259,9 +526,9 @@ def main() -> int:
         error: dict[str, Any] = {"error": str(exc)}
         if isinstance(exc, ApiError) and exc.body is not None:
             error["details"] = exc.body
-        print(json.dumps(error, ensure_ascii=False, indent=2), file=sys.stderr)
+        print(json.dumps(project_public(error), ensure_ascii=False, indent=2), file=sys.stderr)
         return 2
-    print(json.dumps(redact(result), ensure_ascii=False, indent=2))
+    print(json.dumps(project_command_response(args.command, redact(result)), ensure_ascii=False, indent=2))
     return 0
 
 

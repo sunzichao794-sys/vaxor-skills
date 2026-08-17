@@ -1,0 +1,10 @@
+[
+  {
+    "stepId": "frame-1",
+    "quoteConfirmation": "COPY_FROM_PREVIEW"
+  },
+  {
+    "stepId": "clip-1",
+    "quoteConfirmation": "COPY_FROM_PREVIEW"
+  }
+]

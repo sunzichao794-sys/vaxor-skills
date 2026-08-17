@@ -1,24 +1,26 @@
 ---
 name: create-beauty-video
-description: "Use when a user wants to use Vaxor from Codex or a verified/Portable adapter for ChatGPT Work, ZCode, WorkBuddy, Claude Code, or another host to create and name an authenticated video-production instance, manage existing asset folders, upload or import assets, query live model capabilities, submit the user's own generic image/video workflow, run it, and retrieve exports. This is an API connector only: it never supplies Vaxor private prompting, orchestration, provider credentials, fixed model choices, or creative rules."
+description: "Use when a user wants to create or manage an authenticated Vaxor image or video workflow from Codex, ZCode, ChatGPT Work, WorkBuddy, Claude Code, or another supported host. This public connector uses device authorization, opaque model references, user-approved quote confirmations, and Vaxor-managed execution."
 ---
 
-# Vaxor Video Connector
+# Vaxor Public Media Connector
 
 Use this Skill as an authenticated Vaxor control plane. The user and their
 agent own creative analysis, shot planning, and prompts. Vaxor owns identity,
-membership, models, billing, asset persistence, workflow execution, and export
-records.
+membership, published public model labels, billing, asset persistence, workflow
+execution, and export records.
 
 ## Boundaries
 
 - Use only `/api/automation/v1/auth` for device authorization and
   `/api/automation/v2/studio` for production operations.
-- Submit only the user's own generic plan and prompt text. Never request,
-  name, emulate, infer, or expose a Vaxor private profile, rule hash, prompt
-  artifact, private fact, or any internal-only workflow origin.
-- Query models immediately before compiling. Do not hard-code providers, model
-  IDs, availability, price, or credit estimates.
+- Submit only the user's own generic plan and prompt text. Do not request or
+  infer private profiles, private artifacts, hidden implementation details, or
+  protected execution metadata.
+- Query models immediately before preview. Choose only from returned
+  `modelRef`, public label, capability, and public parameter options.
+- A plan uses `modelRef`, never a model identity. A confirmation uses
+  `quoteConfirmation`, never a price implementation detail.
 - Reuse the instance's existing collections/folders for classification. Ask the
   user where assets belong; do not impose a taxonomy.
 - Use a new explicit idempotency key for a new logical action, and reuse the
@@ -36,25 +38,27 @@ records.
    user before `ensure-folders`, `upload-init`/`upload-complete`,
    `asset-import`, or `asset-place`.
 4. Call `models` or `resolve-models` for every required image/video capability.
-   Choose only from the returned availability projection.
+   Select an opaque `modelRef` from the current result.
 5. Write a generic `ExternalWorkflowPlan`: one or more user-authored `image`
    or `video` steps. Each step supplies `id`, `kind`, `title`, `prompt`,
-   `scenarioModelId`, `capability`, `collectionId`; video steps also supply
-   `durationSec`. Use `inputAssetIds` and prior `inputStepIds` for image
-   references when the selected model supports them.
-6. Call `preview` and show the validation output. Then call `compile` with the
-   user-approved credit cap. Compilation has no provider generation side
-   effect.
-7. Call `run` only after the user confirms. Poll `status`, `events`, and
-   `result`. Use the recorded `retryOfRunId` only for a known failed run.
+   `modelRef`, `capability`, and `collectionId`; video steps also supply
+   `durationSec`. `parameters` may only use `aspectRatio`, `resolution`,
+   `durationSec`, and `quantity` when listed by the selected capability.
+6. Call `preview`, show its public prices and `quoteConfirmation` values, then
+   ask the user to confirm the preview. The `compile` command requires the full
+   step-to-confirmation list. Compilation does not generate media.
+7. `compile` returns a new set of run confirmations. Call `run` only after the
+   user confirms those values. Poll `status`, `events`, and `result`. Use the
+   recorded `retryOfRunId` only for a known failed run.
 8. Read `exports` and request a `download-ticket` only after the export record
    is ready. Request `ui-links` whenever the user wants to continue in Vaxor.
 
 ## Helpers
 
-- `scripts/studio_api.py`: standard-library Vaxor API client. Use `--dry-run`
-  to inspect mutating requests before execution. Credentials are saved with
-  mode `0600` in `~/.config/vaxor/automation-credentials.json`.
+- `scripts/studio_api.py`: standard-library Vaxor API client. It validates the
+  public plan contract and projects command output before printing. Use
+  `--dry-run` to inspect a public request shape. Credentials are saved with mode
+  `0600` in `~/.config/vaxor/automation-credentials.json`.
 - `scripts/analyze_reference_video.py`: local technical frame extraction only.
   It does not create prompts or submit data.
 - `references/automation-api.md`: scopes, V2 payload shape, state semantics,

@@ -12,14 +12,19 @@ ROOT = Path(__file__).resolve().parent.parent
 OPENAPI = ROOT / "references" / "automation-openapi.json"
 REQUIRED_OPERATIONS = {
     "startDeviceAuthorization", "pollDeviceToken", "refreshToken", "revokeToken",
-    "getSession", "listModels", "resolveModels", "previewExternalWorkflow",
+    "getSession", "listModels", "resolveModels", "quotePublicModel", "previewExternalWorkflow",
     "createExternalInstance", "compileExternalWorkflow", "startExternalRun",
-    "getExternalRun", "getExternalRunResult", "listExports", "getExport",
+    "getExternalRun", "getExternalRunEvents", "getExternalRunResult", "listExports", "getExport",
     "retryExport", "createDownloadTicket", "getUiLinks",
+}
+FORBIDDEN_TERMS = {
+    "scenariomodelid", "scenariomodelkey", "providerkey", "providermodelname",
+    "bindingkey", "matchedskukey", "policyrevision", "contractversion",
+    "capabilitysnapshot", "workflowdefinition",
 }
 ALLOWED_FILES = {
     "SKILL.md", "agents/openai.yaml", "examples/bad_plan.json",
-    "examples/good_plan.json", "examples/host_contract.json",
+    "examples/good_plan.json", "examples/host_contract.json", "examples/preview_confirmations.json",
     "references/automation-api.md", "references/automation-openapi.json",
     "scripts/analyze_reference_video.py", "scripts/studio_api.py",
     "scripts/validate_skill_contract.py",
@@ -37,6 +42,18 @@ def main() -> int:
         return 1
     if document.get("openapi") != "3.1.0":
         errors.append("OpenAPI version must be 3.1.0")
+    if document.get("info", {}).get("version") != "0.4.0":
+        errors.append("OpenAPI version must be 0.4.0")
+    serialized_openapi = json.dumps(document, ensure_ascii=False).lower()
+    for term in sorted(FORBIDDEN_TERMS):
+        if term in serialized_openapi:
+            errors.append(f"OpenAPI exposes forbidden term: {term}")
+    plan = json.loads((ROOT / "examples" / "good_plan.json").read_text(encoding="utf-8"))
+    steps = plan.get("steps") if isinstance(plan, dict) else None
+    if not isinstance(steps, list) or any(not isinstance(step, dict) or not step.get("modelRef") for step in steps):
+        errors.append("good plan must use modelRef for every step")
+    if "scenarioModelId" in json.dumps(plan):
+        errors.append("good plan must not include scenarioModelId")
     operations = {
         operation.get("operationId")
         for path in document.get("paths", {}).values() if isinstance(path, dict)
