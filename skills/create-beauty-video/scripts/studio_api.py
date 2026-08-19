@@ -520,8 +520,9 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    args = parser().parse_args()
     try:
-        result = run_command(parser().parse_args())
+        result = run_command(args)
     except (ApiError, OSError, json.JSONDecodeError) as exc:
         error: dict[str, Any] = {"error": str(exc)}
         if isinstance(exc, ApiError) and exc.body is not None:
