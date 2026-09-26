@@ -9,6 +9,7 @@ import json
 import mimetypes
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,6 +18,7 @@ from typing import Any
 
 
 DEFAULT_TIMEOUT = 60
+MAX_RETRY_ATTEMPTS = 3
 DEFAULT_CREDENTIALS_PATH = Path(os.environ.get(
     "VAXOR_AUTOMATION_CREDENTIALS_FILE",
     str(Path.home() / ".config" / "vaxor" / "automation-credentials.json"),
@@ -332,6 +334,37 @@ class StudioApi:
         self.dry_run = args.dry_run
         self.idempotency_key = args.idempotency_key
 
+    def _refresh_access_token(self) -> bool:
+        """Exchange the stored refresh token for a new access token (single attempt)."""
+        stored = self.credentials.load()
+        refresh_token = stored.get("refreshToken")
+        if not refresh_token:
+            return False
+        body = json.dumps({"refreshToken": refresh_token}, ensure_ascii=False).encode("utf-8")
+        refresh_request = urllib.request.Request(
+            f"{self.base_url}{AUTH}/token/refresh",
+            data=body,
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(refresh_request, timeout=DEFAULT_TIMEOUT) as response:
+                payload = json.loads(response.read().decode("utf-8") or "{}")
+        except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError):
+            return False
+        data = response_data(payload)
+        token = data.get("accessToken")
+        if not token:
+            return False
+        self.credentials.merge({
+            "accessToken": token,
+            "refreshToken": data.get("refreshToken") or refresh_token,
+            "expiresAt": data.get("expiresAt"),
+            "scopes": data.get("scopes"),
+        })
+        self.token = str(token)
+        return True
+
     def request(self, method: str, path: str, payload: Any = None, *, query: dict[str, Any] | None = None, auth: bool = True) -> dict[str, Any]:
         path = "/" + path.lstrip("/")
         url = f"{self.base_url}{path}"
@@ -348,20 +381,34 @@ class StudioApi:
             return {"dryRun": True}
         if auth and not self.token:
             raise ApiError("authenticate with auth-start/auth-poll first")
-        request = urllib.request.Request(url, data=None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8"), headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(request, timeout=DEFAULT_TIMEOUT) as response:
-                raw = response.read().decode("utf-8")
-                return json.loads(raw) if raw else {"status": response.status}
-        except urllib.error.HTTPError as exc:
-            raw = exc.read().decode("utf-8", errors="replace")
+        body_bytes = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        refresh_attempted = False
+        for attempt in range(1, MAX_RETRY_ATTEMPTS + 1):
+            request = urllib.request.Request(url, data=body_bytes, headers=headers, method=method)
             try:
-                body: Any = json.loads(raw)
-            except json.JSONDecodeError:
-                body = raw
-            raise ApiError(f"Vaxor API returned HTTP {exc.code}", status=exc.code, body=public_error_body(body)) from exc
-        except urllib.error.URLError as exc:
-            raise ApiError(f"Vaxor API request failed: {exc.reason}") from exc
+                with urllib.request.urlopen(request, timeout=DEFAULT_TIMEOUT) as response:
+                    raw = response.read().decode("utf-8")
+                    return json.loads(raw) if raw else {"status": response.status}
+            except urllib.error.HTTPError as exc:
+                raw = exc.read().decode("utf-8", errors="replace")
+                try:
+                    body: Any = json.loads(raw)
+                except json.JSONDecodeError:
+                    body = raw
+                if exc.code == 401 and auth and not refresh_attempted and self._refresh_access_token():
+                    refresh_attempted = True
+                    headers["Authorization"] = f"Bearer {self.token}"
+                    continue
+                if (exc.code == 429 or exc.code >= 500) and attempt < MAX_RETRY_ATTEMPTS:
+                    time.sleep(min(2 ** attempt, 30))
+                    continue
+                raise ApiError(f"Vaxor API returned HTTP {exc.code}", status=exc.code, body=public_error_body(body)) from exc
+            except urllib.error.URLError as exc:
+                if attempt < MAX_RETRY_ATTEMPTS:
+                    time.sleep(min(2 ** attempt, 30))
+                    continue
+                raise ApiError(f"Vaxor API request failed: {exc.reason}") from exc
+        raise ApiError("Vaxor API retries exhausted")
 
     def multipart(self, path: str, file_path: str) -> dict[str, Any]:
         source = Path(file_path).expanduser()

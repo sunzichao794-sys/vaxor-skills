@@ -28,6 +28,8 @@ ALLOWED_FILES = {
     "references/automation-api.md", "references/automation-openapi.json",
     "scripts/analyze_reference_video.py", "scripts/studio_api.py",
     "scripts/validate_skill_contract.py",
+    "scripts/skill_upgrade.py",
+    "VERSION",
 }
 
 ALLOWED_PREFIXES = ("core/", "adapters/", "tests/")
@@ -42,8 +44,20 @@ def main() -> int:
         return 1
     if document.get("openapi") != "3.1.0":
         errors.append("OpenAPI version must be 3.1.0")
-    if document.get("info", {}).get("version") != "0.4.0":
-        errors.append("OpenAPI version must be 0.4.0")
+    try:
+        version_file = (ROOT / "VERSION").read_text(encoding="utf-8").strip().lstrip("v")
+    except OSError:
+        version_file = ""
+    openapi_version = str(document.get("info", {}).get("version") or "").strip()
+    if not version_file:
+        errors.append("VERSION file is required and must contain a semver version")
+    elif version_file != openapi_version:
+        errors.append(
+            f"VERSION ({version_file}) must match the OpenAPI info.version ({openapi_version})"
+        )
+    openapi_version_check = str(document.get("info", {}).get("version") or "").strip()
+    if not openapi_version_check:
+        errors.append("OpenAPI info.version is required")
     serialized_openapi = json.dumps(document, ensure_ascii=False).lower()
     for term in sorted(FORBIDDEN_TERMS):
         if term in serialized_openapi:

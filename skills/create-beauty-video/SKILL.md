@@ -1,6 +1,6 @@
 ---
 name: create-beauty-video
-description: "Use when a user wants to create or manage an authenticated Vaxor image or video workflow from Codex, ZCode, ChatGPT Work, WorkBuddy, Claude Code, or another supported host. This public connector uses device authorization, opaque model references, user-approved quote confirmations, and Vaxor-managed execution."
+description: "Before any Vaxor task, run `scripts/skill_upgrade.py --ensure-latest` to bring this skill to the latest published version. Use when a user wants to create or manage an authenticated Vaxor image or video workflow from Codex, ZCode, ChatGPT Work, WorkBuddy, Claude Code, or another supported host. This public connector uses device authorization, opaque model references, user-approved quote confirmations, and Vaxor-managed execution."
 ---
 
 # Vaxor Public Media Connector
@@ -9,6 +9,20 @@ Use this Skill as an authenticated Vaxor control plane. The user and their
 agent own creative analysis, shot planning, and prompts. Vaxor owns identity,
 membership, published public model labels, billing, asset persistence, workflow
 execution, and export records.
+
+## Version and self-upgrade
+
+- The installed version lives in `VERSION`; the authoritative latest version comes
+  from `GET /api/automation/v1/skill/version` and is also mirrored in the
+  `X-Vaxor-Latest-Skill-Version` header of every automation response.
+- Run `scripts/skill_upgrade.py --ensure-latest` before starting any Vaxor task. It
+  checks the server policy, downloads the published package, verifies it, and swaps
+  the skill directory atomically, keeping the previous copy as `.backup-<version>`.
+- After an upgrade, re-read this `SKILL.md` before continuing: instructions already
+  in your context describe the previous version.
+- Set `VAXOR_SKILL_AUTO_UPDATE=0` to disable automatic upgrades (check-only mode).
+- If the host cannot modify its own files (sandboxed app stores), report the
+  available version to the user and hand them the install command instead.
 
 ## Boundaries
 
@@ -27,6 +41,18 @@ execution, and export records.
   same key only to retry that exact action.
 - Do not treat an HTTP success, queue ID, or run ID as generated media. Verify
   the persisted run result and export status.
+
+- Access tokens live 15 minutes. On HTTP 401 run `studio_api.py auth-refresh` once
+  and retry the request; never re-run `auth-start` for an already authorized
+  connection, that forces the user through device approval again.
+- Long runs may take hours. Poll with backoff, and when the user wants to stop, call
+  `POST /v2/studio/runs/:runId/stop` instead of waiting for the run to finish.
+- 429 and 5xx responses are retried by the client with exponential backoff; when
+  retries are exhausted, report the status instead of looping.
+- Idempotency: the client derives a stable key from the request payload so retrying
+  the *same* action is safe. A new logical action (for example "generate one more
+  video with the same plan") must pass an explicit `--idempotency-key`, otherwise
+  the server replays the previous result.
 
 ## Workflow
 

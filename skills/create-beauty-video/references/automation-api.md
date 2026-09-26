@@ -118,3 +118,22 @@ GET    /v2/studio/instances/:instanceId/ui-links
 completion. Confirm the persisted run result, then the export record. A
 download ticket is short-lived delivery data and must not be persisted by the
 Skill.
+
+## Version, upgrade and client behaviour
+
+- `GET /v1/skill/version` returns the authoritative `latest`, optional
+  `minSupported`, `packageUrl` and `upgradeHint`. Every automation response also
+  carries `X-Vaxor-Latest-Skill-Version`, and `GET /v1/auth/session` includes
+  `skillVersionPolicy`.
+- Run `scripts/skill_upgrade.py --ensure-latest` before a task; the installed
+  version is recorded in `VERSION`. After upgrading, re-read `SKILL.md`.
+- Access tokens expire after 15 minutes. On HTTP 401 refresh once through
+  `POST /v1/auth/token/refresh` and retry; do not restart device authorization.
+- 429/5xx responses are retried with exponential backoff (the bundled client
+  retries up to 3 times); report exhausted retries instead of looping.
+- Idempotency: the client derives a stable key from method+path+payload, so
+  retrying the same action is safe. A new logical action needs an explicit
+  idempotency key, otherwise the server replays the previous response.
+- Long runs: poll `status`/`events` with backoff; `POST /v2/studio/runs/:runId/stop`
+  stops a run, settles in-flight work and releases the unused reservation.
+
