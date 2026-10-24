@@ -35,7 +35,7 @@ FORBIDDEN_PUBLIC_KEYS = {
     "checksum", "billingpolicy", "parameterschema", "inputcontract",
     "capabilitysnapshot", "workflowdefinition", "providerpayload", "definition",
 }
-PUBLIC_PARAMETER_KEYS = {"aspectRatio", "resolution", "durationSec", "quantity"}
+PUBLIC_PARAMETER_KEYS = {"aspectRatio", "resolution", "durationSec", "quantity", "referenceMode"}
 
 
 class ApiError(RuntimeError):
