@@ -69,15 +69,53 @@ execution, and export records.
    or `video` steps. Each step supplies `id`, `kind`, `title`, `prompt`,
    `modelRef`, `capability`, and `collectionId`; video steps also supply
    `durationSec`. `parameters` may only use `aspectRatio`, `resolution`,
-   `durationSec`, and `quantity` when listed by the selected capability.
+   `durationSec`, `quantity`, and `referenceMode` when listed by the selected
+   capability.
 6. Call `preview`, show its public prices and `quoteConfirmation` values, then
    ask the user to confirm the preview. The `compile` command requires the full
-   step-to-confirmation list. Compilation does not generate media.
+   step-to-confirmation list. Compilation does not generate media. If preview
+   returns `status: "rejected"`, fix the plan according to
+   `validation.errors` and preview again; never compile or resubmit the same
+   rejected plan.
 7. `compile` returns a new set of run confirmations. Call `run` only after the
    user confirms those values. Poll `status`, `events`, and `result`. Use the
    recorded `retryOfRunId` only for a known failed run.
 8. Read `exports` and request a `download-ticket` only after the export record
    is ready. Request `ui-links` whenever the user wants to continue in Vaxor.
+
+## Reference routing (hard rules)
+
+Build an `assetId -> kind` map from the `assets` output before writing a plan.
+Never attach every instance asset to every step. Route references by the
+selected step `capability` and its `input` object from `/models`:
+
+- Image steps (`kind=image`) accept image references only:
+  - `text_to_image`: no media references at all.
+  - `image_to_image`: image assets or earlier image steps only, up to the
+    capability's `input.image.maxCount`. Video and audio assets must never be
+    placed on an image step.
+- Video steps (`kind=video`) follow the selected capability:
+  - `text_to_video`: no required media; image/video/audio are optional and only
+    when the capability lists them in `input`.
+  - `image_to_video`: at least one image reference is required; other listed
+    kinds are optional.
+  - `video_to_video`: at least one video reference is required; other listed
+    kinds are optional.
+  - Multimodal models (Seedance 2.5, Kling 4.0, Kling v3 Omni, Omni_flash,
+    muse-video, and similar) accept mixed references through
+    `referenceMode: "reference_pack"`, but only the kinds their `input` lists.
+    A "multimodal" label never enables a disabled kind: Kling 4.0, for example,
+    accepts image + audio references and rejects reference video.
+- `inputStepIds` may only reference earlier steps, and the referenced step's
+  output kind must satisfy the same rules. Step outputs count toward the same
+  per-kind limits and combined quota.
+- When the user wants a frame from a video as an image reference, extract the
+  frame locally with `scripts/analyze_reference_video.py`, upload it as a new
+  image asset, and reference that image asset id. Never pass the original video
+  asset id to an image step.
+- Switching `capability` or `referenceMode` changes how the model is used and
+  its price. Re-run `preview`, get new confirmations, and ask the user again.
+  Never switch modes just to make validation pass.
 
 ## Helpers
 

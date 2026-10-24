@@ -9,12 +9,12 @@ instances, access assets, run workflows, or export media.
 
 | Skill | Version | Status | Host |
 | --- | --- | --- | --- |
-| `create-beauty-video` | `0.5.0` | Stable | Codex |
+| `create-beauty-video` | `0.6.0` | Stable | Codex |
 
 The `create-beauty-video` Codex package and the shared public connector core
-and host adapters are released in `v0.5.0`.
+and host adapters are released in `v0.6.0`.
 
-## Host adapters (`v0.5.0`)
+## Host adapters (`v0.6.0`)
 
 | Host | Adapter | Status | Client type | Native protocol |
 | --- | --- | --- | --- | --- |
@@ -40,7 +40,7 @@ In Codex, ask the built-in installer to install the pinned release:
 
 ```text
 Install skill `skills/create-beauty-video` from GitHub repository
-`sunzichao794-sys/vaxor-skills` at ref `v0.5.0`.
+`sunzichao794-sys/vaxor-skills` at ref `v0.6.0`.
 ```
 
 For a local Codex runtime that exposes the standard installer script, the
@@ -50,7 +50,7 @@ equivalent command is:
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo sunzichao794-sys/vaxor-skills \
   --path skills/create-beauty-video \
-  --ref v0.5.0
+  --ref v0.6.0
 ```
 
 Start a new Codex turn after installation. On first use, the Skill opens the

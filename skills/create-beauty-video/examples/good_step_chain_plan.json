@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "name": "step-chain-plan",
+  "steps": [
+    {
+      "id": "frame-1",
+      "kind": "image",
+      "title": "Image step feeds the video step",
+      "prompt": "The user's own image prompt goes here.",
+      "modelRef": "SELECT_IMAGE_MODEL_REF_FROM_LIVE_MODELS",
+      "capability": "image_to_image",
+      "collectionId": "USER_SELECTED_COLLECTION",
+      "inputAssetIds": [
+        "instance_resource:IMAGE_ASSET_ID_1"
+      ]
+    },
+    {
+      "id": "clip-1",
+      "kind": "video",
+      "title": "Video step consumes the image step output",
+      "prompt": "The user's own motion prompt goes here.",
+      "modelRef": "SELECT_VIDEO_MODEL_REF_FROM_LIVE_MODELS",
+      "capability": "image_to_video",
+      "collectionId": "USER_SELECTED_COLLECTION",
+      "inputStepIds": ["frame-1"],
+      "durationSec": 5
+    }
+  ]
+}

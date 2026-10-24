@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Vaxor Public Automation API",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "Authenticated public media connector using opaque model references and quote confirmations."
   },
   "servers": [
@@ -53,6 +53,15 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "referenceMode": {
+            "type": "string",
+            "enum": [
+              "start",
+              "start_end",
+              "reference_pack",
+              "video_reference"
+            ]
           }
         }
       },

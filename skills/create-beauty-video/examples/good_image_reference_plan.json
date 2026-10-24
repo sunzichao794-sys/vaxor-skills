@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "name": "image-reference-plan",
+  "steps": [
+    {
+      "id": "frame-1",
+      "kind": "image",
+      "title": "User authored image step",
+      "prompt": "The user's own image prompt goes here.",
+      "modelRef": "SELECT_IMAGE_MODEL_REF_FROM_LIVE_MODELS",
+      "capability": "image_to_image",
+      "collectionId": "USER_SELECTED_COLLECTION",
+      "inputAssetIds": [
+        "instance_resource:IMAGE_ASSET_ID_1",
+        "instance_resource:IMAGE_ASSET_ID_2"
+      ]
+    }
+  ]
+}

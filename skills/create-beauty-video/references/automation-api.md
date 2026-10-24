@@ -1,4 +1,4 @@
-# Vaxor Automation API v0.4
+# Vaxor Automation API v0.6
 
 Set `VAXOR_AUTOMATION_BASE_URL` to the Vaxor API root, for example
 `https://studio.example/api/automation`. The client uses `/v1/auth` for device
@@ -48,9 +48,29 @@ consuming compile/run action.
 `ExternalWorkflowPlan` has `{ schemaVersion, name, steps, output? }`. Each
 image or video step uses `{ id, kind, title, prompt, modelRef, capability,
 collectionId }`; video steps also use `durationSec`. Optional parameters are
-only `aspectRatio`, `resolution`, `durationSec`, and `quantity` when the
-selected capability listed them. Use `inputAssetIds` and earlier
-`inputStepIds` only for image references supported by the selected capability.
+only `aspectRatio`, `resolution`, `durationSec`, `quantity`, and
+`referenceMode` when the selected capability listed them.
+
+References are validated against the selected capability, not the model's
+full capability list:
+
+- `inputAssetIds` carry instance resource ids (`instance_resource:<id>` or the
+  bare id). Each referenced asset's `kind` must match an input kind the
+  selected capability accepts; image steps accept image references only.
+- `inputStepIds` may only reference earlier steps, and the referenced step's
+  output kind must also be accepted.
+- Per-kind counts must stay within the capability's `input` limits, and models
+  that advertise `combinedQuota` enforce it across all references.
+- `referenceMode` values are `start`, `start_end`, `reference_pack`, and
+  `video_reference`. `reference_pack` is the multimodal mixed-reference form.
+  Only use a mode the capability's `referenceModes` lists; `start`/`start_end`
+  require exactly 1/2 image references and no other kinds. Omitting
+  `referenceMode` keeps the server's current default behavior.
+- `preview` runs the same reference validation as `compile`. A rejected
+  preview returns `status: "rejected"` with `validation.errors` entries that
+  name the step, field, and offending asset; fix the plan and preview again.
+  Quote confirmations are only issued for plans that pass reference
+  validation.
 
 The plan and confirmation formats deliberately do not include an internal model
 identity, provider, binding, route, channel, SKU, revision, contract, raw
